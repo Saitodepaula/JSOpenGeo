@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Viewer with Selection and Text Extraction</title>
+    <title>PDF Viewer with Select Area and Extract Text</title>
     <style>
         #pdf-canvas {
             border: 1px solid black;
-            cursor: crosshair;
             max-width: 100%;
+            cursor: default;
             position: relative;
         }
         .controls {
@@ -34,8 +34,11 @@
         <div id="selection-rectangle"></div>
     </div>
 
-    <!-- Pagination and Zoom Controls -->
+    <!-- Controls -->
     <div class="controls">
+        <button id="select-area-btn" disabled>Select Area</button>
+        <button id="extract-text-btn" disabled>Extract Text</button>
+        <br><br>
         <button id="prev-page-btn" disabled>Previous Page</button>
         <span>Page: <span id="page-num">1</span> / <span id="page-count">1</span></span>
         <button id="next-page-btn" disabled>Next Page</button>
@@ -63,6 +66,8 @@
         const zoomOutBtn = document.getElementById('zoom-out-btn');
         const pageNumSpan = document.getElementById('page-num');
         const pageCountSpan = document.getElementById('page-count');
+        const selectAreaBtn = document.getElementById('select-area-btn');
+        const extractTextBtn = document.getElementById('extract-text-btn');
         const selectionRectangle = document.getElementById('selection-rectangle');
 
         let pdfDoc = null;
@@ -70,6 +75,8 @@
         let totalPages = 1;
         let scale = 1.5; // Initial zoom scale
         let startX, startY, endX, endY;
+        let isSelectingArea = false;
+        let isRectangleDrawn = false;
 
         // Handle PDF Upload
         pdfUpload.addEventListener('change', (event) => {
@@ -83,6 +90,7 @@
                         totalPages = pdf.numPages;
                         pageCountSpan.textContent = totalPages;
                         renderPage(currentPage);
+                        selectAreaBtn.disabled = false;
                     });
                 };
                 fileReader.readAsArrayBuffer(file);
@@ -111,75 +119,50 @@
             });
         }
 
-        // Pagination: Previous Page
-        prevPageBtn.addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage--;
-                renderPage(currentPage);
-                pdfTextDiv.innerText = ""; // Clear extracted text when changing pages
-            }
-        });
-
-        // Pagination: Next Page
-        nextPageBtn.addEventListener('click', () => {
-            if (currentPage < totalPages) {
-                currentPage++;
-                renderPage(currentPage);
-                pdfTextDiv.innerText = ""; // Clear extracted text when changing pages
-            }
-        });
-
-        // Zoom In
-        zoomInBtn.addEventListener('click', () => {
-            scale += 0.25; // Increase scale by 0.25
-            renderPage(currentPage);
-        });
-
-        // Zoom Out
-        zoomOutBtn.addEventListener('click', () => {
-            if (scale > 0.5) { // Prevent zooming out too far
-                scale -= 0.25;
-                renderPage(currentPage);
-            }
-        });
-
-        // Rectangle Drawing and Text Extraction
-        pdfCanvas.addEventListener('mousedown', (e) => {
-            const rect = pdfCanvas.getBoundingClientRect();
-            startX = e.clientX - rect.left;
-            startY = e.clientY - rect.top;
-
-            selectionRectangle.style.left = `${startX}px`;
-            selectionRectangle.style.top = `${startY}px`;
-            selectionRectangle.style.width = '0px';
-            selectionRectangle.style.height = '0px';
-            selectionRectangle.style.display = 'block';
-        });
-
-        pdfCanvas.addEventListener('mousemove', (e) => {
-            if (selectionRectangle.style.display === 'block') {
-                const rect = pdfCanvas.getBoundingClientRect();
-                endX = e.clientX - rect.left;
-                endY = e.clientY - rect.top;
-
-                const width = endX - startX;
-                const height = endY - startY;
-
-                selectionRectangle.style.width = `${Math.abs(width)}px`;
-                selectionRectangle.style.height = `${Math.abs(height)}px`;
-
-                if (width < 0) {
-                    selectionRectangle.style.left = `${endX}px`;
-                }
-                if (height < 0) {
-                    selectionRectangle.style.top = `${endY}px`;
-                }
-            }
-        });
-
-        pdfCanvas.addEventListener('mouseup', () => {
+        // Select Area Button
+        selectAreaBtn.addEventListener('click', () => {
+            isSelectingArea = true;
+            pdfCanvas.style.cursor = 'crosshair';
+            extractTextBtn.disabled = true;
             selectionRectangle.style.display = 'none';
-            if (pdfDoc) {
+        });
+
+        // Rectangle Drawing with Two Clicks
+        pdfCanvas.addEventListener('click', (e) => {
+            if (isSelectingArea) {
+                const rect = pdfCanvas.getBoundingClientRect();
+                if (!startX && !startY) {
+                    // First click to start drawing the rectangle
+                    startX = e.clientX - rect.left;
+                    startY = e.clientY - rect.top;
+                    selectionRectangle.style.left = `${startX}px`;
+                    selectionRectangle.style.top = `${startY}px`;
+                    selectionRectangle.style.width = '0px';
+                    selectionRectangle.style.height = '0px';
+                    selectionRectangle.style.display = 'block';
+                } else {
+                    // Second click to finish the rectangle
+                    endX = e.clientX - rect.left;
+                    endY = e.clientY - rect.top;
+                    const width = endX - startX;
+                    const height = endY - startY;
+
+                    selectionRectangle.style.width = `${Math.abs(width)}px`;
+                    selectionRectangle.style.height = `${Math.abs(height)}px`;
+                    selectionRectangle.style.left = `${Math.min(startX, endX)}px`;
+                    selectionRectangle.style.top = `${Math.min(startY, endY)}px`;
+
+                    isRectangleDrawn = true;
+                    extractTextBtn.disabled = false;
+                    isSelectingArea = false;
+                    pdfCanvas.style.cursor = 'default';
+                }
+            }
+        });
+
+        // Extract Text Button
+        extractTextBtn.addEventListener('click', () => {
+            if (isRectangleDrawn && pdfDoc) {
                 extractTextFromSelectedArea();
             }
         });
@@ -212,6 +195,44 @@
             });
         }
 
+        // Pagination and Zoom
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage(currentPage);
+                resetSelection();
+            }
+        });
+
+        nextPageBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage(currentPage);
+                resetSelection();
+            }
+        });
+
+        zoomInBtn.addEventListener('click', () => {
+            scale += 0.25;
+            renderPage(currentPage);
+            resetSelection();
+        });
+
+        zoomOutBtn.addEventListener('click', () => {
+            if (scale > 0.5) {
+                scale -= 0.25;
+                renderPage(currentPage);
+                resetSelection();
+            }
+        });
+
+        // Reset selection rectangle and variables
+        function resetSelection() {
+            startX = startY = endX = endY = null;
+            isRectangleDrawn = false;
+            extractTextBtn.disabled = true;
+            selectionRectangle.style.display = 'none';
+        }
     </script>
 
 </body>
