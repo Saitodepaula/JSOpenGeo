@@ -29,7 +29,7 @@
 </head>
 <body>
 
-    <h2>Upload, View, and Extract Text from PDF 0.3</h2>
+    <h2>Upload, View, and Extract Text from PDF 0.4</h2>
 
     <!-- Upload Button -->
     <input type="file" id="pdf-upload" accept="application/pdf" />
@@ -45,6 +45,7 @@
         <button id="select-borehole-btn" disabled>Select Borehole Name</button>
         <button id="select-data-btn" disabled>Select Data 01</button>
         <button id="extract-text-btn" disabled>Extract Text</button>
+        <button id="extract-text-all-pages-btn" disabled>Extract Text From All Pages</button>
         <br><br>
         <button id="prev-page-btn" disabled>Previous Page</button>
         <span>Page: <span id="page-num">1</span> / <span id="page-count">1</span></span>
@@ -76,6 +77,7 @@
         const selectBoreholeBtn = document.getElementById('select-borehole-btn');
         const selectDataBtn = document.getElementById('select-data-btn');
         const extractTextBtn = document.getElementById('extract-text-btn');
+        const extractTextAllPagesBtn = document.getElementById('extract-text-all-pages-btn');
         const selectionRectangle = document.getElementById('selection-rectangle');
 
         let pdfDoc = null;
@@ -151,43 +153,30 @@
             selectionRectangle.classList.add('red-border');
         });
 
-        // Handle Rectangle Drawing on Mouse Down and Move
+        // Handle Rectangle Drawing with Two Clicks
         pdfCanvas.addEventListener('mousedown', (e) => {
             if (isSelectingArea) {
                 const rect = pdfCanvas.getBoundingClientRect();
-                startX = e.clientX - rect.left;
-                startY = e.clientY - rect.top;
-                selectionRectangle.style.left = `${startX}px`;
-                selectionRectangle.style.top = `${startY}px`;
-                selectionRectangle.style.width = '0px';
-                selectionRectangle.style.height = '0px';
-                selectionRectangle.style.display = 'block';
-
-                pdfCanvas.addEventListener('mousemove', handleMouseMove);
-            }
-        });
-
-        // Update Rectangle Size on Mouse Move
-        function handleMouseMove(e) {
-            const rect = pdfCanvas.getBoundingClientRect();
-            endX = e.clientX - rect.left;
-            endY = e.clientY - rect.top;
-
-            const width = endX - startX;
-            const height = endY - startY;
-            selectionRectangle.style.width = `${Math.abs(width)}px`;
-            selectionRectangle.style.height = `${Math.abs(height)}px`;
-            selectionRectangle.style.left = `${Math.min(startX, endX)}px`;
-            selectionRectangle.style.top = `${Math.min(startY, endY)}px`;
-        }
-
-        // Stop Rectangle Drawing on Mouse Up
-        pdfCanvas.addEventListener('mouseup', (e) => {
-            if (isSelectingArea) {
-                pdfCanvas.removeEventListener('mousemove', handleMouseMove);
-                extractTextBtn.disabled = false;
-                isSelectingArea = false;
-                pdfCanvas.style.cursor = 'default';
+                if (!startX && !startY) {
+                    startX = e.clientX - rect.left;
+                    startY = e.clientY - rect.top;
+                    selectionRectangle.style.left = `${startX}px`;
+                    selectionRectangle.style.top = `${startY}px`;
+                    selectionRectangle.style.width = '0px';
+                    selectionRectangle.style.height = '0px';
+                    selectionRectangle.style.display = 'block';
+                } else {
+                    endX = e.clientX - rect.left;
+                    endY = e.clientY - rect.top;
+                    selectionRectangle.style.width = `${Math.abs(endX - startX)}px`;
+                    selectionRectangle.style.height = `${Math.abs(endY - startY)}px`;
+                    selectionRectangle.style.left = `${Math.min(startX, endX)}px`;
+                    selectionRectangle.style.top = `${Math.min(startY, endY)}px`;
+                    extractTextBtn.disabled = false;
+                    extractTextAllPagesBtn.disabled = false;
+                    isSelectingArea = false;
+                    pdfCanvas.style.cursor = 'default';
+                }
             }
         });
 
@@ -207,6 +196,24 @@
             resetSelection();
         });
 
+        // Extract Text From All Pages Button
+        extractTextAllPagesBtn.addEventListener('click', () => {
+            const promises = [];
+            for (let i = 1; i <= totalPages; i++) {
+                promises.push(extractTextFromSelectedArea(i));
+            }
+            Promise.all(promises).then((pagesText) => {
+                const fullText = pagesText.join('\n---\n');
+                if (selectionType === 'borehole') {
+                    boreholeText = fullText;
+                } else if (selectionType === 'data') {
+                    dataText = fullText;
+                }
+                displayExtractedText();
+                resetSelection();
+            });
+        });
+
         // Extract Text from Selected Area
         async function extractTextFromSelectedArea(pageNumber) {
             const rect = pdfCanvas.getBoundingClientRect();
@@ -221,9 +228,9 @@
 
             let extractedText = '';
             const sortedItems = textContent.items.sort((a, b) => {
-                const aTrans = pdfjsLib.Util.transform(viewport.transform, a.transform);
-                const bTrans = pdfjsLib.Util.transform(viewport.transform, b.transform);
-                return aTrans[5] - bTrans[5] || aTrans[4] - bTrans[4];
+                const [ax, ay] = pdfjsLib.Util.transform(viewport.transform, a.transform).slice(4, 6);
+                const [bx, by] = pdfjsLib.Util.transform(viewport.transform, b.transform).slice(4, 6);
+                return ay - by || ax - bx;
             });
 
             sortedItems.forEach((textItem) => {
@@ -249,6 +256,7 @@
             selectionRectangle.style.display = 'none';
             selectionRectangle.classList.remove('blue-border', 'red-border');
             extractTextBtn.disabled = true;
+            extractTextAllPagesBtn.disabled = true;
         }
 
         // Pagination and Zoom Controls
