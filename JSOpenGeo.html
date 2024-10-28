@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Viewer and Text Extractor</title>
+</head>
+<body>
+
+    <h2>Upload and View PDF</h2>
+
+    <!-- Upload Button -->
+    <input type="file" id="pdf-upload" accept="application/pdf" />
+
+    <!-- Canvas to display PDF -->
+    <canvas id="pdf-canvas"></canvas>
+
+    <!-- Extracted Text Output -->
+    <h3>Extracted Text:</h3>
+    <div id="pdf-text"></div>
+
+    <!-- PDF.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js"></script>
+
+    <script>
+        const pdfUpload = document.getElementById('pdf-upload');
+        const pdfCanvas = document.getElementById('pdf-canvas');
+        const pdfContext = pdfCanvas.getContext('2d');
+        const pdfTextDiv = document.getElementById('pdf-text');
+        let pdfDoc = null;
+
+        // Handle PDF Upload
+        pdfUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                const fileReader = new FileReader();
+                fileReader.onload = () => {
+                    const typedarray = new Uint8Array(fileReader.result);
+                    pdfjsLib.getDocument(typedarray).promise.then((pdf) => {
+                        pdfDoc = pdf;
+                        renderPage(1);
+                        extractTextFromPage(1);
+                    });
+                };
+                fileReader.readAsArrayBuffer(file);
+            } else {
+                alert("Please upload a valid PDF file.");
+            }
+        });
+
+        // Render PDF Page
+        function renderPage(pageNumber) {
+            pdfDoc.getPage(pageNumber).then((page) => {
+                const viewport = page.getViewport({ scale: 1.5 });
+                pdfCanvas.width = viewport.width;
+                pdfCanvas.height = viewport.height;
+
+                const renderContext = {
+                    canvasContext: pdfContext,
+                    viewport: viewport
+                };
+                page.render(renderContext);
+            });
+        }
+
+        // Extract and Display Text
+        function extractTextFromPage(pageNumber) {
+            pdfDoc.getPage(pageNumber).then((page) => {
+                page.getTextContent().then((textContent) => {
+                    const textItems = textContent.items.map(item => item.str);
+                    pdfTextDiv.innerText = textItems.join(' ');
+                });
+            });
+        }
+    </script>
+
+</body>
+</html>
