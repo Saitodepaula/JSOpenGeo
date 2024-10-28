@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Viewer with Select Area, Extract Text, and Download XLSX</title>
+    <title>PDF Viewer with Select Area and Extract Text</title>
     <style>
         #pdf-canvas {
             border: 1px solid black;
@@ -16,20 +17,14 @@
         }
         #selection-rectangle {
             position: absolute;
-            border: 2px dashed;
+            border: 2px dashed red;
             display: none;
-        }
-        .blue-border {
-            border-color: blue;
-        }
-        .red-border {
-            border-color: red;
         }
     </style>
 </head>
 <body>
 
-    <h2>Upload, View, Extract Text, and Download XLSX 0.7</h2>
+    <h2>Upload, View, and Extract Text from PDF 0.8</h2>
 
     <!-- Upload Button -->
     <input type="file" id="pdf-upload" accept="application/pdf" />
@@ -42,11 +37,9 @@
 
     <!-- Controls -->
     <div class="controls">
-        <button id="select-borehole-btn" disabled>Select Borehole Name</button>
-        <button id="select-data-btn" disabled>Select Data 01</button>
+        <button id="select-area-btn" disabled>Select Area</button>
         <button id="extract-text-btn" disabled>Extract Text</button>
         <button id="extract-text-all-pages-btn" disabled>Extract Text From All Pages</button>
-        <button id="download-xlsx-btn" disabled>Download as XLSX</button>
         <br><br>
         <button id="prev-page-btn" disabled>Previous Page</button>
         <span>Page: <span id="page-num">1</span> / <span id="page-count">1</span></span>
@@ -64,200 +57,244 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js"></script>
 
-    <!-- SheetJS Library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
-
     <script>
         const pdfUpload = document.getElementById('pdf-upload');
         const pdfCanvas = document.getElementById('pdf-canvas');
         const pdfContext = pdfCanvas.getContext('2d');
         const pdfTextDiv = document.getElementById('pdf-text');
+        const prevPageBtn = document.getElementById('prev-page-btn');
+        const nextPageBtn = document.getElementById('next-page-btn');
+        const zoomInBtn = document.getElementById('zoom-in-btn');
+        const zoomOutBtn = document.getElementById('zoom-out-btn');
         const pageNumSpan = document.getElementById('page-num');
         const pageCountSpan = document.getElementById('page-count');
+        const selectAreaBtn = document.getElementById('select-area-btn');
+        const extractTextBtn = document.getElementById('extract-text-btn');
+        const extractTextAllPagesBtn = document.getElementById('extract-text-all-pages-btn');
         const selectionRectangle = document.getElementById('selection-rectangle');
 
         let pdfDoc = null;
         let currentPage = 1;
         let totalPages = 1;
-        let scale = 1.5;
-        let isSelectingArea = false;
-        let selectionType = '';
-        let boreholeText = '';
-        let dataText = '';
+        let scale = 1.5; // Initial zoom scale
         let startX, startY, endX, endY;
+        let isSelectingArea = false;
+        let isRectangleDrawn = false;
 
-        pdfUpload.addEventListener('change', async (event) => {
+        // Handle PDF Upload
+        pdfUpload.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file && file.type === 'application/pdf') {
-                const typedarray = new Uint8Array(await file.arrayBuffer());
-                pdfDoc = await pdfjsLib.getDocument(typedarray).promise;
-                totalPages = pdfDoc.numPages;
-                pageCountSpan.textContent = totalPages;
-                renderPage(currentPage);
-                toggleButtonState(false, ['select-borehole-btn', 'select-data-btn']);
+                const fileReader = new FileReader();
+                fileReader.onload = () => {
+                    const typedarray = new Uint8Array(fileReader.result);
+                    pdfjsLib.getDocument(typedarray).promise.then((pdf) => {
+                        pdfDoc = pdf;
+                        totalPages = pdf.numPages;
+                        pageCountSpan.textContent = totalPages;
+                        renderPage(currentPage);
+                        selectAreaBtn.disabled = false;
+                    });
+                };
+                fileReader.readAsArrayBuffer(file);
             } else {
                 alert("Please upload a valid PDF file.");
             }
         });
 
-        const renderPage = async (pageNumber) => {
-            const page = await pdfDoc.getPage(pageNumber);
-            const viewport = page.getViewport({ scale });
-            pdfCanvas.width = viewport.width;
-            pdfCanvas.height = viewport.height;
-            await page.render({ canvasContext: pdfContext, viewport }).promise;
+        // Render PDF Page
+        function renderPage(pageNumber) {
+            pdfDoc.getPage(pageNumber).then((page) => {
+                const viewport = page.getViewport({ scale: scale });
+                pdfCanvas.width = viewport.width;
+                pdfCanvas.height = viewport.height;
 
-            pageNumSpan.textContent = pageNumber;
-            toggleButtonState(pageNumber <= 1, ['prev-page-btn']);
-            toggleButtonState(pageNumber >= totalPages, ['next-page-btn']);
-        };
+                const renderContext = {
+                    canvasContext: pdfContext,
+                    viewport: viewport
+                };
+                page.render(renderContext);
 
-        const toggleButtonState = (state, buttonIds) => {
-            buttonIds.forEach(id => document.getElementById(id).disabled = state);
-        };
+                // Update page count display
+                pageNumSpan.textContent = pageNumber;
+                prevPageBtn.disabled = pageNumber <= 1;
+                nextPageBtn.disabled = pageNumber >= totalPages;
+            });
+        }
 
-        // Select Borehole Button
-        document.getElementById('select-borehole-btn').addEventListener('click', () => {
-            resetSelection();
+        // Select Area Button
+        selectAreaBtn.addEventListener('click', () => {
             isSelectingArea = true;
-            selectionType = 'borehole';
             pdfCanvas.style.cursor = 'crosshair';
-            selectionRectangle.classList.add('blue-border');
+            extractTextBtn.disabled = true;
+            extractTextAllPagesBtn.disabled = true;
+            selectionRectangle.style.display = 'none';
         });
 
-        // Select Data 01 Button
-        document.getElementById('select-data-btn').addEventListener('click', () => {
-            resetSelection();
-            isSelectingArea = true;
-            selectionType = 'data';
-            pdfCanvas.style.cursor = 'crosshair';
-            selectionRectangle.classList.add('red-border');
-        });
-
-        // Handle Rectangle Drawing with Mouse Events
-        pdfCanvas.addEventListener('mousedown', (e) => {
+        // Rectangle Drawing with Two Clicks
+        pdfCanvas.addEventListener('click', (e) => {
             if (isSelectingArea) {
                 const rect = pdfCanvas.getBoundingClientRect();
-                startX = e.clientX - rect.left;
-                startY = e.clientY - rect.top;
-                selectionRectangle.style.left = `${startX}px`;
-                selectionRectangle.style.top = `${startY}px`;
-                selectionRectangle.style.width = '0px';
-                selectionRectangle.style.height = '0px';
-                selectionRectangle.style.display = 'block';
+                if (!startX && !startY) {
+                    // First click to start drawing the rectangle
+                    startX = e.clientX - rect.left;
+                    startY = e.clientY - rect.top;
+                    selectionRectangle.style.left = `${startX}px`;
+                    selectionRectangle.style.top = `${startY}px`;
+                    selectionRectangle.style.width = '0px';
+                    selectionRectangle.style.height = '0px';
+                    selectionRectangle.style.display = 'block';
+                } else {
+                    // Second click to finish the rectangle
+                    endX = e.clientX - rect.left;
+                    endY = e.clientY - rect.top;
+                    const width = endX - startX;
+                    const height = endY - startY;
 
-                const mouseMoveHandler = (moveEvent) => {
-                    endX = moveEvent.clientX - rect.left;
-                    endY = moveEvent.clientY - rect.top;
-                    selectionRectangle.style.width = `${Math.abs(endX - startX)}px`;
-                    selectionRectangle.style.height = `${Math.abs(endY - startY)}px`;
+                    selectionRectangle.style.width = `${Math.abs(width)}px`;
+                    selectionRectangle.style.height = `${Math.abs(height)}px`;
                     selectionRectangle.style.left = `${Math.min(startX, endX)}px`;
                     selectionRectangle.style.top = `${Math.min(startY, endY)}px`;
-                };
 
-                const mouseUpHandler = () => {
-                    pdfCanvas.removeEventListener('mousemove', mouseMoveHandler);
-                    pdfCanvas.removeEventListener('mouseup', mouseUpHandler);
+                    isRectangleDrawn = true;
                     extractTextBtn.disabled = false;
-                    document.getElementById('extract-text-all-pages-btn').disabled = false;
-                    document.getElementById('download-xlsx-btn').disabled = false;
-                    isSelectingArea = false;  // Set to false to indicate selection is finished
+                    extractTextAllPagesBtn.disabled = false;
+                    isSelectingArea = false;
                     pdfCanvas.style.cursor = 'default';
-                };
-
-                pdfCanvas.addEventListener('mousemove', mouseMoveHandler);
-                pdfCanvas.addEventListener('mouseup', mouseUpHandler);
+                }
             }
         });
 
         // Extract Text Button
-        document.getElementById('extract-text-btn').addEventListener('click', async () => {
-            const text = await extractTextFromSelectedArea(currentPage);
-            if (selectionType === 'borehole') {
-                boreholeText = text;
-            } else if (selectionType === 'data') {
-                dataText = text;
+        extractTextBtn.addEventListener('click', () => {
+            if (isRectangleDrawn && pdfDoc) {
+                extractTextFromSelectedArea(currentPage);
+                resetSelection(); // Reset selection after extracting text
             }
-            displayExtractedText();
-            resetSelection();
         });
 
         // Extract Text From All Pages Button
-        document.getElementById('extract-text-all-pages-btn').addEventListener('click', async () => {
-            const promises = [];
-            for (let i = 1; i <= totalPages; i++) {
-                promises.push(extractTextFromSelectedArea(i));
+        extractTextAllPagesBtn.addEventListener('click', () => {
+            if (isRectangleDrawn && pdfDoc) {
+                extractTextFromAllPages();
+                resetSelection();
             }
-            const pagesText = await Promise.all(promises);
-            const fullText = pagesText.join('\n---\n');
-            if (selectionType === 'borehole') {
-                boreholeText = fullText;
-            } else if (selectionType === 'data') {
-                dataText = fullText;
-            }
-            displayExtractedText();
-            resetSelection();
         });
 
-        // Download as XLSX Button
-        document.getElementById('download-xlsx-btn').addEventListener('click', () => {
-            const worksheet = XLSX.utils.json_to_sheet([{ Borehole: boreholeText, Data01: dataText }]);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Extracted Text");
-            XLSX.writeFile(workbook, "Extracted_Text.xlsx");
-        });
+        // Extract Text from Selected Area on One Page
+        function extractTextFromSelectedArea(pageNumber) {
+            const rect = pdfCanvas.getBoundingClientRect();
+            const xMin = Math.min(startX, endX);
+            const yMin = Math.min(startY, endY);
+            const xMax = Math.max(startX, endX);
+            const yMax = Math.max(startY, endY);
 
-        // Text Extraction Function
-        async function extractTextFromSelectedArea(pageNumber) {
-            const page = await pdfDoc.getPage(pageNumber);
-            const viewport = page.getViewport({ scale });
-            const textContent = await page.getTextContent();
-            const textItems = textContent.items;
+            pdfDoc.getPage(pageNumber).then((page) => {
+                page.getTextContent().then((textContent) => {
+                    const viewport = page.getViewport({ scale: scale });
+                    let extractedText = '';
 
-            const xMin = Math.min(startX, endX) / scale;
-            const xMax = Math.max(startX, endX) / scale;
-            const yMin = Math.min(startY, endY) / scale;
-            const yMax = Math.max(startY, endY) / scale;
+                    const sortedItems = textContent.items.sort((a, b) => {
+                        const aTrans = pdfjsLib.Util.transform(viewport.transform, a.transform);
+                        const bTrans = pdfjsLib.Util.transform(viewport.transform, b.transform);
+                        return aTrans[5] - bTrans[5] || aTrans[4] - bTrans[4];
+                    });
 
-            let extractedText = '';
-            textItems.forEach(item => {
-                const { transform, str } = item;
-                const x = transform[4];
-                const y = transform[5];
-                if (x >= xMin && x <= xMax && y >= yMin && y <= yMax) {
-                    extractedText += str + ' ';
-                }
+                    sortedItems.forEach((textItem) => {
+                        const tx = pdfjsLib.Util.transform(viewport.transform, textItem.transform);
+                        const [x, y] = [tx[4], tx[5]];
+
+                        if (x >= xMin && x <= xMax && y >= yMin && y <= yMax) {
+                            extractedText += textItem.str + ' ';
+                        }
+                    });
+
+                    pdfTextDiv.innerText = extractedText || 'No text found in the selected area.';
+                });
             });
-            return extractedText.trim();
         }
 
-        // Display Extracted Text
-        const displayExtractedText = () => {
-            pdfTextDiv.textContent = `Borehole Text:\n${boreholeText}\n\nData Text:\n${dataText}`;
-        };
+        // Extract Text from Selected Area on All Pages
+        function extractTextFromAllPages() {
+            const rect = pdfCanvas.getBoundingClientRect();
+            const xMin = Math.min(startX, endX);
+            const yMin = Math.min(startY, endY);
+            const xMax = Math.max(startX, endX);
+            const yMax = Math.max(startY, endY);
 
-        // Reset Selection
-        const resetSelection = () => {
+            let fullText = '';
+
+            function extractTextFromPage(pageNumber) {
+                return pdfDoc.getPage(pageNumber).then((page) => {
+                    return page.getTextContent().then((textContent) => {
+                        const viewport = page.getViewport({ scale: scale });
+                        let pageText = '';
+
+                        const sortedItems = textContent.items.sort((a, b) => {
+                            const aTrans = pdfjsLib.Util.transform(viewport.transform, a.transform);
+                            const bTrans = pdfjsLib.Util.transform(viewport.transform, b.transform);
+                            return aTrans[5] - bTrans[5] || aTrans[4] - bTrans[4];
+                        });
+
+                        sortedItems.forEach((textItem) => {
+                            const tx = pdfjsLib.Util.transform(viewport.transform, textItem.transform);
+                            const [x, y] = [tx[4], tx[5]];
+
+                            if (x >= xMin && x <= xMax && y >= yMin && y <= yMax) {
+                                pageText += textItem.str + ' ';
+                            }
+                        });
+
+                        return pageText;
+                    });
+                });
+            }
+
+            const promises = [];
+            for (let i = 1; i <= totalPages; i++) {
+                promises.push(extractTextFromPage(i));
+            }
+
+            Promise.all(promises).then((pagesText) => {
+                fullText = pagesText.join('\n---\n');
+                pdfTextDiv.innerText = fullText || 'No text found in the selected area across all pages.';
+            });
+        }
+
+        // Reset selection
+        function resetSelection() {
+            startX = startY = endX = endY = null;
+            isRectangleDrawn = false;
+            extractTextBtn.disabled = true;
+            extractTextAllPagesBtn.disabled = true;
             selectionRectangle.style.display = 'none';
-            selectionRectangle.style.width = '0';
-            selectionRectangle.style.height = '0';
-            boreholeText = '';
-            dataText = '';
-            selectionType = '';
-            isSelectingArea = false; // Reset selection state
-            pdfCanvas.style.cursor = 'default';
-        };
+        }
 
-        // Implement pagination and zoom functions
-        const changePage = (increment) => {
-            currentPage += increment;
+        // Pagination and Zoom Controls
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage(currentPage);
+            }
+        });
+
+        nextPageBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage(currentPage);
+            }
+        });
+
+        zoomInBtn.addEventListener('click', () => {
+            scale += 0.25;
             renderPage(currentPage);
-        };
+        });
 
-        document.getElementById('prev-page-btn').addEventListener('click', () => changePage(-1));
-        document.getElementById('next-page-btn').addEventListener('click', () => changePage(1));
-        document.getElementById('zoom-in-btn').addEventListener('click', () => { scale += 0.1; renderPage(currentPage); });
-        document.getElementById('zoom-out-btn').addEventListener('click', () => { scale -= 0.1; renderPage(currentPage); });
+        zoomOutBtn.addEventListener('click', () => {
+            scale = Math.max(scale - 0.25, 0.5);
+            renderPage(currentPage);
+        });
     </script>
+
 </body>
 </html>
