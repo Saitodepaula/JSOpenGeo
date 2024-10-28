@@ -23,7 +23,7 @@
 </head>
 <body>
 
-    <h2>Upload, View, and Extract Text from PDF 0.0</h2>
+    <h2>Upload, View, and Extract Text from PDF 0.1</h2>
 
     <!-- Upload Button -->
     <input type="file" id="pdf-upload" accept="application/pdf" />
@@ -164,8 +164,8 @@
         extractTextBtn.addEventListener('click', () => {
             if (isRectangleDrawn && pdfDoc) {
                 extractTextFromSelectedArea();
+                resetSelection(); // Reset selection after extracting text
             }
-            resetSelection();
         });
 
         // Extract Text from Selected Area
@@ -181,7 +181,14 @@
                     const viewport = page.getViewport({ scale: scale });
                     let extractedText = '';
 
-                    textContent.items.forEach((textItem) => {
+                    // Sort text items from top-left to bottom-right
+                    const sortedItems = textContent.items.sort((a, b) => {
+                        const aTrans = pdfjsLib.Util.transform(viewport.transform, a.transform);
+                        const bTrans = pdfjsLib.Util.transform(viewport.transform, b.transform);
+                        return aTrans[5] - bTrans[5] || aTrans[4] - bTrans[4];
+                    });
+
+                    sortedItems.forEach((textItem) => {
                         const tx = pdfjsLib.Util.transform(viewport.transform, textItem.transform);
                         const [x, y] = [tx[4], tx[5]];
 
