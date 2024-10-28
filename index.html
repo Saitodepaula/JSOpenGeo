@@ -3,17 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Viewer and Text Extractor</title>
+    <title>PDF Viewer with Pagination and Zoom</title>
+    <style>
+        #pdf-canvas {
+            border: 1px solid black;
+            max-width: 100%;
+        }
+        .controls {
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
 
-    <h2>Upload and View PDF</h2>
+    <h2>Upload, View, and Navigate PDF</h2>
 
     <!-- Upload Button -->
     <input type="file" id="pdf-upload" accept="application/pdf" />
 
     <!-- Canvas to display PDF -->
     <canvas id="pdf-canvas"></canvas>
+
+    <!-- Pagination and Zoom Controls -->
+    <div class="controls">
+        <button id="prev-page-btn" disabled>Previous Page</button>
+        <span>Page: <span id="page-num">1</span> / <span id="page-count">1</span></span>
+        <button id="next-page-btn" disabled>Next Page</button>
+        <br><br>
+        <button id="zoom-in-btn">Zoom In</button>
+        <button id="zoom-out-btn">Zoom Out</button>
+    </div>
 
     <!-- Extracted Text Output -->
     <h3>Extracted Text:</h3>
@@ -28,7 +47,17 @@
         const pdfCanvas = document.getElementById('pdf-canvas');
         const pdfContext = pdfCanvas.getContext('2d');
         const pdfTextDiv = document.getElementById('pdf-text');
+        const prevPageBtn = document.getElementById('prev-page-btn');
+        const nextPageBtn = document.getElementById('next-page-btn');
+        const zoomInBtn = document.getElementById('zoom-in-btn');
+        const zoomOutBtn = document.getElementById('zoom-out-btn');
+        const pageNumSpan = document.getElementById('page-num');
+        const pageCountSpan = document.getElementById('page-count');
+
         let pdfDoc = null;
+        let currentPage = 1;
+        let totalPages = 1;
+        let scale = 1.5; // Initial zoom scale
 
         // Handle PDF Upload
         pdfUpload.addEventListener('change', (event) => {
@@ -39,8 +68,10 @@
                     const typedarray = new Uint8Array(fileReader.result);
                     pdfjsLib.getDocument(typedarray).promise.then((pdf) => {
                         pdfDoc = pdf;
-                        renderPage(1);
-                        extractTextFromPage(1);
+                        totalPages = pdf.numPages;
+                        pageCountSpan.textContent = totalPages;
+                        renderPage(currentPage);
+                        extractTextFromPage(currentPage);
                     });
                 };
                 fileReader.readAsArrayBuffer(file);
@@ -52,7 +83,7 @@
         // Render PDF Page
         function renderPage(pageNumber) {
             pdfDoc.getPage(pageNumber).then((page) => {
-                const viewport = page.getViewport({ scale: 1.5 });
+                const viewport = page.getViewport({ scale: scale });
                 pdfCanvas.width = viewport.width;
                 pdfCanvas.height = viewport.height;
 
@@ -61,10 +92,15 @@
                     viewport: viewport
                 };
                 page.render(renderContext);
+
+                // Update page count display
+                pageNumSpan.textContent = pageNumber;
+                prevPageBtn.disabled = pageNumber <= 1;
+                nextPageBtn.disabled = pageNumber >= totalPages;
             });
         }
 
-        // Extract and Display Text
+        // Extract Text from PDF Page
         function extractTextFromPage(pageNumber) {
             pdfDoc.getPage(pageNumber).then((page) => {
                 page.getTextContent().then((textContent) => {
@@ -73,6 +109,39 @@
                 });
             });
         }
+
+        // Pagination: Previous Page
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage(currentPage);
+                extractTextFromPage(currentPage);
+            }
+        });
+
+        // Pagination: Next Page
+        nextPageBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage(currentPage);
+                extractTextFromPage(currentPage);
+            }
+        });
+
+        // Zoom In
+        zoomInBtn.addEventListener('click', () => {
+            scale += 0.25; // Increase scale by 0.25
+            renderPage(currentPage);
+        });
+
+        // Zoom Out
+        zoomOutBtn.addEventListener('click', () => {
+            if (scale > 0.5) { // Prevent zooming out too far
+                scale -= 0.25;
+                renderPage(currentPage);
+            }
+        });
+
     </script>
 
 </body>
