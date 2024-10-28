@@ -3,26 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Viewer with Pagination and Zoom</title>
+    <title>PDF Viewer with Selection and Text Extraction</title>
     <style>
         #pdf-canvas {
             border: 1px solid black;
+            cursor: crosshair;
             max-width: 100%;
+            position: relative;
         }
         .controls {
             margin-top: 10px;
+        }
+        #selection-rectangle {
+            position: absolute;
+            border: 2px dashed red;
+            display: none;
         }
     </style>
 </head>
 <body>
 
-    <h2>Upload, View, and Navigate PDF</h2>
+    <h2>Upload, View, and Extract Text from PDF</h2>
 
     <!-- Upload Button -->
     <input type="file" id="pdf-upload" accept="application/pdf" />
 
     <!-- Canvas to display PDF -->
-    <canvas id="pdf-canvas"></canvas>
+    <div id="pdf-container" style="position: relative;">
+        <canvas id="pdf-canvas"></canvas>
+        <div id="selection-rectangle"></div>
+    </div>
 
     <!-- Pagination and Zoom Controls -->
     <div class="controls">
@@ -53,11 +63,13 @@
         const zoomOutBtn = document.getElementById('zoom-out-btn');
         const pageNumSpan = document.getElementById('page-num');
         const pageCountSpan = document.getElementById('page-count');
+        const selectionRectangle = document.getElementById('selection-rectangle');
 
         let pdfDoc = null;
         let currentPage = 1;
         let totalPages = 1;
         let scale = 1.5; // Initial zoom scale
+        let startX, startY, endX, endY;
 
         // Handle PDF Upload
         pdfUpload.addEventListener('change', (event) => {
@@ -71,7 +83,6 @@
                         totalPages = pdf.numPages;
                         pageCountSpan.textContent = totalPages;
                         renderPage(currentPage);
-                        extractTextFromPage(currentPage);
                     });
                 };
                 fileReader.readAsArrayBuffer(file);
@@ -100,22 +111,12 @@
             });
         }
 
-        // Extract Text from PDF Page
-        function extractTextFromPage(pageNumber) {
-            pdfDoc.getPage(pageNumber).then((page) => {
-                page.getTextContent().then((textContent) => {
-                    const textItems = textContent.items.map(item => item.str);
-                    pdfTextDiv.innerText = textItems.join(' ');
-                });
-            });
-        }
-
         // Pagination: Previous Page
         prevPageBtn.addEventListener('click', () => {
             if (currentPage > 1) {
                 currentPage--;
                 renderPage(currentPage);
-                extractTextFromPage(currentPage);
+                pdfTextDiv.innerText = ""; // Clear extracted text when changing pages
             }
         });
 
@@ -124,7 +125,7 @@
             if (currentPage < totalPages) {
                 currentPage++;
                 renderPage(currentPage);
-                extractTextFromPage(currentPage);
+                pdfTextDiv.innerText = ""; // Clear extracted text when changing pages
             }
         });
 
@@ -141,6 +142,75 @@
                 renderPage(currentPage);
             }
         });
+
+        // Rectangle Drawing and Text Extraction
+        pdfCanvas.addEventListener('mousedown', (e) => {
+            const rect = pdfCanvas.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+
+            selectionRectangle.style.left = `${startX}px`;
+            selectionRectangle.style.top = `${startY}px`;
+            selectionRectangle.style.width = '0px';
+            selectionRectangle.style.height = '0px';
+            selectionRectangle.style.display = 'block';
+        });
+
+        pdfCanvas.addEventListener('mousemove', (e) => {
+            if (selectionRectangle.style.display === 'block') {
+                const rect = pdfCanvas.getBoundingClientRect();
+                endX = e.clientX - rect.left;
+                endY = e.clientY - rect.top;
+
+                const width = endX - startX;
+                const height = endY - startY;
+
+                selectionRectangle.style.width = `${Math.abs(width)}px`;
+                selectionRectangle.style.height = `${Math.abs(height)}px`;
+
+                if (width < 0) {
+                    selectionRectangle.style.left = `${endX}px`;
+                }
+                if (height < 0) {
+                    selectionRectangle.style.top = `${endY}px`;
+                }
+            }
+        });
+
+        pdfCanvas.addEventListener('mouseup', () => {
+            selectionRectangle.style.display = 'none';
+            if (pdfDoc) {
+                extractTextFromSelectedArea();
+            }
+        });
+
+        // Extract Text from Selected Area
+        function extractTextFromSelectedArea() {
+            const rect = pdfCanvas.getBoundingClientRect();
+            const xMin = Math.min(startX, endX);
+            const yMin = Math.min(startY, endY);
+            const xMax = Math.max(startX, endX);
+            const yMax = Math.max(startY, endY);
+
+            pdfDoc.getPage(currentPage).then((page) => {
+                page.getTextContent().then((textContent) => {
+                    const viewport = page.getViewport({ scale: scale });
+                    let extractedText = '';
+
+                    textContent.items.forEach((textItem) => {
+                        const tx = pdfjsLib.Util.transform(viewport.transform, textItem.transform);
+                        const [x, y] = [tx[4], tx[5]];
+
+                        // Check if the text is within the selection rectangle
+                        if (x >= xMin && x <= xMax && y >= yMin && y <= yMax) {
+                            extractedText += textItem.str + ' ';
+                        }
+                    });
+
+                    pdfTextDiv.innerText = extractedText || 'No text found in the selected area.';
+                });
+            });
+        }
 
     </script>
 
