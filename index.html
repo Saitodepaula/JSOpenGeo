@@ -5,16 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Viewer with Select Area, Extract Text, and Download XLSX</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
         #pdf-canvas {
             border: 1px solid black;
             max-width: 100%;
             cursor: default;
             position: relative;
-            transition: all 0.2s ease;
         }
         .controls {
             margin-top: 10px;
@@ -30,25 +25,23 @@
         .red-border {
             border-color: red;
         }
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
     </style>
 </head>
 <body>
 
-    <h2>Upload, View, Extract Text, and Download XLSX 0.6</h2>
+    <h2>Upload, View, Extract Text, and Download XLSX 0.7</h2>
 
+    <!-- Upload Button -->
     <input type="file" id="pdf-upload" accept="application/pdf" />
 
+    <!-- Canvas to display PDF -->
     <div id="pdf-container" style="position: relative;">
         <canvas id="pdf-canvas"></canvas>
         <div id="selection-rectangle"></div>
     </div>
 
-    <fieldset class="controls">
-        <legend>Controls</legend>
+    <!-- Controls -->
+    <div class="controls">
         <button id="select-borehole-btn" disabled>Select Borehole Name</button>
         <button id="select-data-btn" disabled>Select Data 01</button>
         <button id="extract-text-btn" disabled>Extract Text</button>
@@ -61,13 +54,17 @@
         <br><br>
         <button id="zoom-in-btn">Zoom In</button>
         <button id="zoom-out-btn">Zoom Out</button>
-    </fieldset>
+    </div>
 
+    <!-- Extracted Text Output -->
     <h3>Extracted Text:</h3>
     <div id="pdf-text"></div>
 
+    <!-- PDF.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js"></script>
+
+    <!-- SheetJS Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
 
     <script>
@@ -164,7 +161,7 @@
                     extractTextBtn.disabled = false;
                     document.getElementById('extract-text-all-pages-btn').disabled = false;
                     document.getElementById('download-xlsx-btn').disabled = false;
-                    isSelectingArea = false;
+                    isSelectingArea = false;  // Set to false to indicate selection is finished
                     pdfCanvas.style.cursor = 'default';
                 };
 
@@ -247,7 +244,7 @@
             boreholeText = '';
             dataText = '';
             selectionType = '';
-            isSelectingArea = false;
+            isSelectingArea = false; // Reset selection state
             pdfCanvas.style.cursor = 'default';
         };
 
@@ -261,7 +258,6 @@
         document.getElementById('next-page-btn').addEventListener('click', () => changePage(1));
         document.getElementById('zoom-in-btn').addEventListener('click', () => { scale += 0.1; renderPage(currentPage); });
         document.getElementById('zoom-out-btn').addEventListener('click', () => { scale -= 0.1; renderPage(currentPage); });
-
     </script>
 </body>
 </html>
