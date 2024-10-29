@@ -28,7 +28,7 @@
 </head>
 <body>
 
-    <h2>Upload, View, and Extract Text from PDF 0.8</h2>
+    <h2>Upload, View, and Extract Text from PDF 0.9</h2>
 
     <!-- Upload Button -->
     <input type="file" id="pdf-upload" accept="application/pdf" />
@@ -68,8 +68,8 @@
         const pdfCanvas = document.getElementById('pdf-canvas');
         const pdfContext = pdfCanvas.getContext('2d');
 		
-		const pdfDraw = document.getElementById('pdf-draw');
-		const pdfDrawContext = pdfDraw.getContext('2d');
+		const pdfDrawCanvas = document.getElementById('pdf-draw');
+		const pdfDrawCanvasContext = pdfDrawCanvas.getContext('2d');
 		
         const pdfTextDiv = document.getElementById('pdf-text');
         const prevPageBtn = document.getElementById('prev-page-btn');
@@ -120,13 +120,9 @@
                 pdfCanvas.width = viewport.width;
                 pdfCanvas.height = viewport.height;
 				
-				pdfDraw.width = viewport.width;
-                pdfDraw.height = viewport.height;
+				pdfDrawCanvas.width = viewport.width;
+                pdfDrawCanvas.height = viewport.height;
 				
-				pdfDrawContext.lineWidth = "6";
-				pdfDrawContext.strokeStyle = "red";
-				pdfDrawContext.strokeRect(5, 5, 290, 140);
-
                 const renderContext = {
                     canvasContext: pdfContext,
                     viewport: viewport
@@ -146,28 +142,29 @@
 			resetSelection();
 		
             isSelectingArea = true;
-            pdfCanvas.style.cursor = 'crosshair';
+            pdfDrawCanvas.style.cursor = 'crosshair';
             extractTextBtn.disabled = true;
             extractTextAllPagesBtn.disabled = true;
             selectionRectangle.style.display = 'none';
         });
 
         // Rectangle Drawing with Two Clicks
-        pdfCanvas.addEventListener('click', (e) => {
+        pdfDrawCanvas.addEventListener('click', (e) => {
 		
             if (isSelectingArea) {			
-                const rect = pdfCanvas.getBoundingClientRect();
+                const rect = pdfDrawCanvas.getBoundingClientRect();
                 if (!startX && !startY) {
                     // First click to start drawing the rectangle
                     startX = e.clientX - rect.left;
                     startY = e.clientY - rect.top;
-                    selectionRectangle.style.left = `${startX}px`;
+									
+                    /*selectionRectangle.style.left = `${startX}px`;
                     selectionRectangle.style.top = `${startY}px`;
                     selectionRectangle.style.width = '0px';
                     selectionRectangle.style.height = '0px';
-                    selectionRectangle.style.display = 'block';
+                    selectionRectangle.style.display = 'block';*/
 					
-					//pdfCanvas.addEventListener('mousemove', handleMouseMove);
+					pdfDrawCanvas.addEventListener('mousemove', handleMouseMove);
 					
                 } else {
                     // Second click to finish the rectangle
@@ -175,27 +172,31 @@
                     endY = e.clientY - rect.top;
                     const width = endX - startX;
                     const height = endY - startY;
+					
+					pdfDrawCanvasContext.lineWidth = "2";
+					pdfDrawCanvasContext.strokeStyle = "red";
+					pdfDrawCanvasContext.strokeRect(startX, startY, width, height);
 
-                    selectionRectangle.style.width = `${Math.abs(width)}px`;
+                    /*selectionRectangle.style.width = `${Math.abs(width)}px`;
                     selectionRectangle.style.height = `${Math.abs(height)}px`;
                     selectionRectangle.style.left = `${Math.min(startX, endX)}px`;
-                    selectionRectangle.style.top = `${Math.min(startY, endY)}px`;
+                    selectionRectangle.style.top = `${Math.min(startY, endY)}px`;*/
 
                     isRectangleDrawn = true;
                     extractTextBtn.disabled = false;
                     extractTextAllPagesBtn.disabled = false;
                     isSelectingArea = false;
-                    pdfCanvas.style.cursor = 'default';
+                    pdfDrawCanvas.style.cursor = 'default';
 					
 					//pdfTextDiv.innerText = startX
-					//pdfCanvas.removeEventListener('mousemove', handleMouseMove);
+					pdfDrawCanvas.removeEventListener('mousemove', handleMouseMove);
                 }
             }
         });
 		
 		function handleMouseMove(e) {
 
-			const rect = pdfCanvas.getBoundingClientRect();
+			const rect = pdfDrawCanvas.getBoundingClientRect();
 			
 			endX = e.clientX - rect.left;
 			endY = e.clientY - rect.top;
@@ -203,12 +204,18 @@
 			const width = endX - startX;
 			const height = endY - startY;
 			
-			selectionRectangle.style.width = `${Math.abs(width)}px`;
+			pdfDrawCanvasContext.clearRect(0, 0, pdfDrawCanvas.width, pdfDrawCanvas.height);
+			
+			pdfDrawCanvasContext.lineWidth = "2";
+			pdfDrawCanvasContext.strokeStyle = "red";
+			pdfDrawCanvasContext.strokeRect(startX, startY, width, height);
+			
+			/*selectionRectangle.style.width = `${Math.abs(width)}px`;
 			selectionRectangle.style.height = `${Math.abs(height)}px`;
 			selectionRectangle.style.left = `${Math.min(startX, endX)}px`;
-			selectionRectangle.style.top = `${Math.min(startY, endY)}px`;
+			selectionRectangle.style.top = `${Math.min(startY, endY)}px`;*/
 			
-			pdfTextDiv.innerText = startX
+			//pdfTextDiv.innerText = startX
 
         }
 
@@ -216,7 +223,7 @@
         extractTextBtn.addEventListener('click', () => {
             if (isRectangleDrawn && pdfDoc) {
                 extractTextFromSelectedArea(currentPage);
-                resetSelection(); // Reset selection after extracting text
+                //resetSelection(); // Reset selection after extracting text
             }
         });
 
@@ -224,7 +231,7 @@
         extractTextAllPagesBtn.addEventListener('click', () => {
             if (isRectangleDrawn && pdfDoc) {
                 extractTextFromAllPages();
-                resetSelection();
+                //resetSelection();
             }
         });
 
@@ -314,7 +321,9 @@
             isRectangleDrawn = false;
             extractTextBtn.disabled = true;
             extractTextAllPagesBtn.disabled = true;
-            selectionRectangle.style.display = 'none';
+            //selectionRectangle.style.display = 'none';
+			
+			pdfDrawCanvasContext.clearRect(0, 0, pdfDrawCanvas.width, pdfDrawCanvas.height);
         }
 
         // Pagination and Zoom Controls
