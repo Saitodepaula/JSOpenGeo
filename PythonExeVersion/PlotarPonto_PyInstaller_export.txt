@@ -1,0 +1,5 @@
+pyinstaller --clean --onefile --windowed --icon=JS_PlotarPonto_256.ico PlotarPontos_JS.py
+
+pyinstaller --clean -F --icon=JS_PlotarPonto_256.ico PlotarPontos_JS.py
+
+C:\Users\msait\OneDrive\ProjetosJS\PlotarPontos
